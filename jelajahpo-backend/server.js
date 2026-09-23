@@ -63,21 +63,21 @@ app.post('/wisata', (req, res) => {
         id_kategori
     } = req.body;
 
-    // Validasi nama wisata
+    
     if (!nama_wisata || nama_wisata.trim() === '') {
         return res.status(400).json({
             message: 'Nama Wisata wajib diisi'
         });
     }
 
-    // Validasi deskripsi
+    
     if (!deskripsi || deskripsi.trim() === '') {
         return res.status(400).json({
             message: 'Deskripsi wajib diisi'
         });
     }
 
-    // Validasi harga tiket
+    
     if (!harga_tiket) {
         return res.status(400).json({
             message: 'Harga tiket wajib diisi'
@@ -95,6 +95,7 @@ app.post('/wisata', (req, res) => {
         [nama_wisata, deskripsi, harga_tiket, id_kategori],
         (err, result) => {
             if (err) {
+                console.error("ERROR INSERT WISATA:", err);
                 return res.status(500).json({
                     error: err.sqlMessage
                 });

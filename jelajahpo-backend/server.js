@@ -1,13 +1,18 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
+const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = 3001;
+const saltRounds = 10;
 
 app.use(cors());
 app.use(express.json());
 
+// =========================
+// KONEKSI DATABASE
+// =========================
 const db = mysql.createConnection({
     host: 'localhost',
     user: 'root',
@@ -15,25 +20,35 @@ const db = mysql.createConnection({
     database: 'jelajahpo-db'
 });
 
-db.connect(err => {
+db.connect((err) => {
     if (err) {
-        console.error('Gagal konek ke database:', err);
-    } else {
-        console.log('Berhasil konek ke database JelajahPo');
+        console.error('Gagal konek ke database:', err.message);
+        return;
     }
+
+    console.log('Berhasil konek ke database jelajahPo');
 });
 
+// =========================
+// HOME
+// =========================
 app.get('/', (req, res) => {
-    res.send('Selamat Datang di JelajahPo API 💄');
+    res.send('jelajahPo Backend API berjalan!');
 });
 
+// =========================
+// GET WISATA
+// =========================
 app.get('/wisata', (req, res) => {
     const sql = 'SELECT * FROM wisata';
 
     db.query(sql, (err, results) => {
         if (err) {
+            console.error('Error GET /wisata:', err.message);
+
             return res.status(500).json({
-                error: err.sqlMessage
+                message: 'Gagal mengambil data wisata',
+                error: err.message
             });
         }
 
@@ -41,13 +56,19 @@ app.get('/wisata', (req, res) => {
     });
 });
 
+// =========================
+// GET KATEGORI
+// =========================
 app.get('/kategori', (req, res) => {
     const sql = 'SELECT * FROM kategori';
 
     db.query(sql, (err, results) => {
         if (err) {
+            console.error('Error GET /kategori:', err.message);
+
             return res.status(500).json({
-                error: err.sqlMessage
+                message: 'Gagal mengambil data kategori',
+                error: err.message
             });
         }
 
@@ -55,6 +76,9 @@ app.get('/kategori', (req, res) => {
     });
 });
 
+// =========================
+// POST WISATA
+// =========================
 app.post('/wisata', (req, res) => {
     const {
         nama_wisata,
@@ -63,24 +87,15 @@ app.post('/wisata', (req, res) => {
         id_kategori
     } = req.body;
 
-    
-    if (!nama_wisata || nama_wisata.trim() === '') {
+    if (!nama_wisata || !harga_tiket) {
         return res.status(400).json({
-            message: 'Nama Wisata wajib diisi'
+            message: 'Nama Wisata dan harga_tiket wajib diisi'
         });
     }
 
-    
-    if (!deskripsi || deskripsi.trim() === '') {
+    if (!deskripsi) {
         return res.status(400).json({
             message: 'Deskripsi wajib diisi'
-        });
-    }
-
-    
-    if (!harga_tiket) {
-        return res.status(400).json({
-            message: 'Harga tiket wajib diisi'
         });
     }
 
@@ -95,9 +110,11 @@ app.post('/wisata', (req, res) => {
         [nama_wisata, deskripsi, harga_tiket, id_kategori],
         (err, result) => {
             if (err) {
-                console.error("ERROR INSERT WISATA:", err);
+                console.error('Error POST /wisata:', err.message);
+
                 return res.status(500).json({
-                    error: err.sqlMessage
+                    message: 'Gagal menambahkan wisata',
+                    error: err.message
                 });
             }
 
@@ -109,9 +126,18 @@ app.post('/wisata', (req, res) => {
     );
 });
 
+// =========================
+// PUT WISATA
+// =========================
 app.put('/wisata/:id_wisata', (req, res) => {
     const { id_wisata } = req.params;
-    const { nama_wisata, deskripsi, harga_tiket, id_kategori } = req.body;
+
+    const {
+        nama_wisata,
+        deskripsi,
+        harga_tiket,
+        id_kategori
+    } = req.body;
 
     if (!nama_wisata || !harga_tiket) {
         return res.status(400).json({
@@ -120,17 +146,29 @@ app.put('/wisata/:id_wisata', (req, res) => {
     }
 
     const sql = `
-        UPDATE wisata 
-        SET nama_wisata=?, deskripsi=?, harga_tiket=?, id_kategori=? 
-        WHERE id_wisata=?
+        UPDATE wisata
+        SET nama_wisata = ?,
+            deskripsi = ?,
+            harga_tiket = ?,
+            id_kategori = ?
+        WHERE id_wisata = ?
     `;
 
     db.query(
         sql,
-        [nama_wisata, deskripsi, harga_tiket, id_kategori, id_wisata],
+        [
+            nama_wisata,
+            deskripsi,
+            harga_tiket,
+            id_kategori,
+            id_wisata
+        ],
         (err, result) => {
             if (err) {
+                console.error('Error PUT /wisata:', err.message);
+
                 return res.status(500).json({
+                    message: 'Gagal mengupdate wisata',
                     error: err.message
                 });
             }
@@ -148,14 +186,20 @@ app.put('/wisata/:id_wisata', (req, res) => {
     );
 });
 
+// =========================
+// DELETE WISATA
+// =========================
 app.delete('/wisata/:id_wisata', (req, res) => {
     const { id_wisata } = req.params;
 
-    const sql = 'DELETE FROM wisata WHERE id_wisata=?';
+    const sql = 'DELETE FROM wisata WHERE id_wisata = ?';
 
     db.query(sql, [id_wisata], (err, result) => {
         if (err) {
+            console.error('Error DELETE /wisata:', err.message);
+
             return res.status(500).json({
+                message: 'Gagal menghapus wisata',
                 error: err.message
             });
         }
@@ -172,6 +216,97 @@ app.delete('/wisata/:id_wisata', (req, res) => {
     });
 });
 
+// =========================
+// POST PENGGUNA
+// =========================
+app.post('/pengguna', async (req, res) => {
+    const {
+        nama,
+        email,
+        password,
+        no_hp
+    } = req.body;
+
+    // Validasi data
+    if (!nama || !email || !password) {
+        return res.status(400).json({
+            message: 'Nama, email, dan password wajib diisi'
+        });
+    }
+
+    try {
+        // Cek apakah email sudah terdaftar
+        const cekEmail = 'SELECT * FROM pengguna WHERE email = ?';
+
+        db.query(cekEmail, [email], async (err, results) => {
+
+            if (err) {
+                console.error('Error cek email:', err.message);
+
+                return res.status(500).json({
+                    message: 'Gagal mengecek email',
+                    error: err.message
+                });
+            }
+
+            // Jika email sudah ada
+            if (results.length > 0) {
+                return res.status(400).json({
+                    message: 'Email sudah terdaftar, gunakan email lain'
+                });
+            }
+
+            // Enkripsi password
+            const hashedPassword = await bcrypt.hash(
+                password,
+                saltRounds
+            );
+
+            const sql = `
+                INSERT INTO pengguna
+                (nama, email, password, no_hp)
+                VALUES (?, ?, ?, ?)
+            `;
+
+            db.query(
+                sql,
+                [nama, email, hashedPassword, no_hp],
+                (err, result) => {
+
+                    if (err) {
+                        console.error(
+                            'Error POST /pengguna:',
+                            err.message
+                        );
+
+                        return res.status(500).json({
+                            message: 'Gagal membuat akun',
+                            error: err.message
+                        });
+                    }
+
+                    res.status(201).json({
+                        message: 'Akun berhasil dibuat!',
+                        id_pengguna: result.insertId
+                    });
+                }
+            );
+        });
+
+    } catch (err) {
+        console.error('Error bcrypt:', err.message);
+
+        res.status(500).json({
+            message: 'Gagal mengenkripsi password'
+        });
+    }
+});
+
+// =========================
+// MENJALANKAN SERVER
+// =========================
 app.listen(PORT, () => {
-    console.log(`Server JelajahPo jalan di http://localhost:${PORT}`);
+    console.log(
+        `Server jelajahPo jalan di http://localhost:${PORT}`
+    );
 });
